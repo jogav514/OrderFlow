@@ -1,0 +1,15 @@
+# .NET / Visual Studio
+bin/
+obj/
+.vs/
+*.user
+*.suo
+publish/
+
+# Node / Vue
+node_modules/
+dist/
+.vite/
+
+# Entorno local (no subir secretos)
+.env

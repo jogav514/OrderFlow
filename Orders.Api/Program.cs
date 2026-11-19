@@ -31,7 +31,18 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+// Permitir peticiones desde el frontend Vue (local y Docker)
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowFrontend", policy =>
+        policy.AllowAnyOrigin()
+              .AllowAnyHeader()
+              .AllowAnyMethod());
+});
+
+
 var app = builder.Build();
+app.UseCors("AllowFrontend");
 
 // 4. Aplicar migraciones y seed automáticamente al iniciar la aplicación (con reintentos para Docker)
 await ApplyMigrationsWithRetryAsync(app.Services, app.Logger);

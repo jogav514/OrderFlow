@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Orders.Api.Data;
 using Orders.Api.Messaging;
+using Orders.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -24,6 +25,8 @@ builder.Services.AddDbContext<OrdersDbContext>(options =>
 builder.Services.Configure<RabbitMqOptions>(
 builder.Configuration.GetSection(RabbitMqOptions.SectionName));
 builder.Services.AddScoped<IOrderEventPublisher, RabbitMqOrderEventPublisher>();
+builder.Services.AddScoped<IOrderStatusUpdater, OrderStatusUpdater>();
+builder.Services.AddHostedService<InventoryEventsConsumer>();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();

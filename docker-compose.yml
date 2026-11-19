@@ -1,0 +1,51 @@
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: orderflow-sqlserver
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: "Developer"
+      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD:-OrderFlow_Dev_2026!}"
+    ports:
+      - "${MSSQL_PORT:-14335}:1433"
+    volumes:
+      - orderflow_sqldata:/var/opt/mssql
+    networks:
+      - orderflow-net
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -Q \"SELECT 1\" || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: orderflow-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: "${RABBITMQ_USER:-orderflow}"
+      RABBITMQ_DEFAULT_PASS: "${RABBITMQ_PASS:-OrderFlow_Rmq_2026!}"
+    ports:
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "${RABBITMQ_UI_PORT:-15672}:15672"
+    volumes:
+      - orderflow_rabbitmqdata:/var/lib/rabbitmq
+    networks:
+      - orderflow-net
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+networks:
+  orderflow-net:
+    name: orderflow-net
+    driver: bridge
+
+volumes:
+  orderflow_sqldata:
+    name: orderflow_sqldata
+  orderflow_rabbitmqdata:
+    name: orderflow_rabbitmqdata

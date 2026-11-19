@@ -1,5 +1,7 @@
 using Inventory.Worker;
 using Inventory.Worker.Data;
+using Inventory.Worker.Messaging;
+using Inventory.Worker.Services;
 using Microsoft.EntityFrameworkCore;
 
 var builder = Host.CreateApplicationBuilder(args);
@@ -21,6 +23,9 @@ builder.Services.AddDbContext<InventoryDbContext>(options =>
             errorNumbersToAdd: null)));
 
 // 3. Registrar el servicio en segundo plano (Worker)
+builder.Services.Configure<RabbitMqOptions>(
+builder.Configuration.GetSection(RabbitMqOptions.SectionName));
+builder.Services.AddScoped<IInventoryProcessor, InventoryProcessor>();
 builder.Services.AddHostedService<Worker>();
 
 var host = builder.Build();

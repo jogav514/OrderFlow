@@ -14,7 +14,11 @@ if (string.IsNullOrWhiteSpace(connectionString))
 
 // 2. Registrar InventoryDbContext. Cada evento que llegue creará un Scope nuevo para usar este DbContext.
 builder.Services.AddDbContext<InventoryDbContext>(options =>
-    options.UseSqlServer(connectionString));
+    options.UseSqlServer(connectionString, sqlOptions =>
+        sqlOptions.EnableRetryOnFailure(
+            maxRetryCount: 5,
+            maxRetryDelay: TimeSpan.FromSeconds(5),
+            errorNumbersToAdd: null)));
 
 // 3. Registrar el servicio en segundo plano (Worker)
 builder.Services.AddHostedService<Worker>();

@@ -13,7 +13,11 @@ if (string.IsNullOrWhiteSpace(connectionString))
 
 // 2. Registrar OrdersDbContext en el contenedor de Inyección de Dependencias (Scoped por petición HTTP)
 builder.Services.AddDbContext<OrdersDbContext>(options =>
-    options.UseSqlServer(connectionString));
+    options.UseSqlServer(connectionString, sqlOptions =>
+        sqlOptions.EnableRetryOnFailure(
+            maxRetryCount: 5,
+            maxRetryDelay: TimeSpan.FromSeconds(5),
+            errorNumbersToAdd: null)));
 
 // 3. Servicios estándar de API REST y documentación Swagger
 builder.Services.AddControllers();

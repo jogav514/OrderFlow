@@ -40,8 +40,15 @@ public class InventoryDbContext : DbContext
             entity.Property(x => x.Nombre).HasMaxLength(150).IsRequired();
             entity.Property(x => x.Disponible).IsRequired();
 
-            // Columna de control de concurrencia optimista administrada por SQL Server
-            entity.Property(x => x.RowVersion).IsRowVersion();
+             // Solo SQL Server genera RowVersion automáticamente; otros proveedores (como SQLite en tests) lo ignoran
+            if (Database.IsSqlServer())
+            {
+                entity.Property(x => x.RowVersion).IsRowVersion();
+            }
+            else
+            {
+                entity.Ignore(x => x.RowVersion);
+            }
 
             // Seed automático: carga 4 productos iniciales al aplicar la migración (mínimo requerido: 3)
             entity.HasData(

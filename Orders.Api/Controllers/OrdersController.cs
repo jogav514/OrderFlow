@@ -1,8 +1,10 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using OrderFlow.Contracts.Events;
 using Orders.Api.Data;
 using Orders.Api.DTOs;
 using Orders.Api.Entities;
+using Orders.Api.Messaging;
 
 namespace Orders.Api.Controllers;
 
@@ -14,23 +16,28 @@ namespace Orders.Api.Controllers;
 public class OrdersController : ControllerBase
 {
     private readonly OrdersDbContext _db;
+    private readonly IOrderEventPublisher _publisher;
     private readonly ILogger<OrdersController> _logger;
 
-    public OrdersController(OrdersDbContext db, ILogger<OrdersController> logger)
+    public OrdersController(
+        OrdersDbContext db,
+        IOrderEventPublisher publisher,
+        ILogger<OrdersController> logger)
     {
         _db = db;
+        _publisher = publisher;
         _logger = logger;
     }
 
     /// <summary>
-    /// Crea un nuevo pedido en estado inicial Pending tras validar los datos y la existencia del SKU.
+    /// Crea un pedido en estado Pending y publica el evento OrderCreated en RabbitMQ.
     /// </summary>
     [HttpPost]
     [ProducesResponseType(typeof(OrderResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
     public async Task<IActionResult> CreateOrder([FromBody] CreateOrderRequest request, CancellationToken cancellationToken)
     {
-        // Normalizamos espacios y mayúsculas del SKU para evitar fallos por formato
         var clienteNombre = request.ClienteNombre?.Trim() ?? string.Empty;
         var sku = request.Sku?.Trim().ToUpperInvariant() ?? string.Empty;
 
@@ -44,7 +51,6 @@ public class OrdersController : ControllerBase
             return BadRequest(new { error = "La cantidad debe estar entre 1 y 100." });
         }
 
-        // Validación de negocio: el SKU debe existir en el catálogo inicial
         var skuExiste = await _db.CatalogProducts
             .AnyAsync(p => p.Sku == sku, cancellationToken);
 
@@ -53,7 +59,6 @@ public class OrdersController : ControllerBase
             return BadRequest(new { error = $"El SKU '{sku}' no existe en el catálogo." });
         }
 
-        // Todo pedido nuevo nace en estado Pending
         var order = new Order
         {
             Id = Guid.NewGuid(),
@@ -67,10 +72,32 @@ public class OrdersController : ControllerBase
         _db.Orders.Add(order);
         await _db.SaveChangesAsync(cancellationToken);
 
-        _logger.LogInformation("Pedido {OrderId} creado en estado Pending para SKU {Sku} (cantidad: {Cantidad}).",
-            order.Id, order.Sku, order.Cantidad);
+        // Publicamos el evento OrderCreated hacia RabbitMQ
+        var orderCreatedEvent = new OrderCreatedEvent(
+            EventId: Guid.NewGuid(),
+            OrderId: order.Id,
+            Sku: order.Sku,
+            Cantidad: order.Cantidad,
+            OcurridoEn: DateTime.UtcNow
+        );
 
-        // En la Fase 6 publicaremos aquí el evento OrderCreated hacia RabbitMQ
+        try
+        {
+            await _publisher.PublishOrderCreatedAsync(orderCreatedEvent, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            // Manejo explícito si RabbitMQ está caído al publicar
+            _logger.LogError(ex,
+                "El pedido {OrderId} se guardó en Pending, pero falló la publicación en RabbitMQ.",
+                order.Id);
+
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, new
+            {
+                error = "El pedido fue registrado en estado Pending, pero el broker de mensajería no está disponible en este momento.",
+                orderId = order.Id
+            });
+        }
 
         var response = MapToResponse(order);
         return CreatedAtAction(nameof(GetOrderById), new { id = order.Id }, response);

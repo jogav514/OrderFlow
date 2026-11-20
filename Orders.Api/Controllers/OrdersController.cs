@@ -56,7 +56,7 @@ public class OrdersController : ControllerBase
 
         if (!skuExiste)
         {
-            return BadRequest(new { error = $"El SKU '{sku}' no existe en el catálogo." });
+            return BadRequest(new { error = $"El SKU '{sku}' no existe en el catalogo." });
         }
 
         var order = new Order

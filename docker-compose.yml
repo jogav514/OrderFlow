@@ -39,6 +39,61 @@ services:
       retries: 10
       start_period: 15s
 
+  orders-api:
+    build:
+      context: .
+      dockerfile: Orders.Api/Dockerfile
+    container_name: orderflow-orders-api
+    environment:
+      ASPNETCORE_ENVIRONMENT: "Development"
+      ConnectionStrings__DefaultConnection: "Server=sqlserver,1433;Database=OrderFlow_OrdersDb;User Id=sa;Password=${MSSQL_SA_PASSWORD:-OrderFlow_Dev_2026!};Encrypt=False;TrustServerCertificate=True;"
+      RabbitMq__Host: "rabbitmq"
+      RabbitMq__Port: "5672"
+      RabbitMq__UserName: "${RABBITMQ_USER:-orderflow}"
+      RabbitMq__Password: "${RABBITMQ_PASS:-OrderFlow_Rmq_2026!}"
+    ports:
+      - "${ORDERS_API_PORT:-5080}:8080"
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - orderflow-net
+
+  inventory-worker:
+    build:
+      context: .
+      dockerfile: Inventory.Worker/Dockerfile
+    container_name: orderflow-inventory-worker
+    environment:
+      ConnectionStrings__DefaultConnection: "Server=sqlserver,1433;Database=OrderFlow_InventoryDb;User Id=sa;Password=${MSSQL_SA_PASSWORD:-OrderFlow_Dev_2026!};Encrypt=False;TrustServerCertificate=True;"
+      RabbitMq__Host: "rabbitmq"
+      RabbitMq__Port: "5672"
+      RabbitMq__UserName: "${RABBITMQ_USER:-orderflow}"
+      RabbitMq__Password: "${RABBITMQ_PASS:-OrderFlow_Rmq_2026!}"
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - orderflow-net
+
+  frontend:
+    build:
+      context: ./orderflow.web
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: "${VITE_API_URL:-http://localhost:5080}"
+    container_name: orderflow-frontend
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    depends_on:
+      - orders-api
+    networks:
+      - orderflow-net
+
 networks:
   orderflow-net:
     name: orderflow-net
